@@ -1,0 +1,130 @@
+- name: Configure 1Password host
+  hosts: 1password_host
+  become: true
+  vars:
+    docker_packages:
+      - docker.io
+      - docker-compose
+
+  tasks:
+    - name: Install and authenticate Tailscale
+      include_role:
+        name: artis3n.tailscale.machine
+      vars:
+        tailscale_authkey: "{{ lookup('env', 'TAILSCALE_KEY') }}"
+        tailscale_args: ""
+
+    - name: Install Docker and Docker Compose
+      apt:
+        name: "{{ docker_packages }}"
+        state: present
+        update_cache: true
+
+    - name: Add user to docker group
+      user:
+        name: "{{ username }}"
+        groups: docker
+        append: yes
+
+    - name: Write 1Password credentials to file
+      copy:
+        content: "{{ op_connect_json }}"
+        dest: "/home/{{ username }}/1password-credentials.json"
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: '0644'
+
+    - name: Copy Docker Compose file
+      template:
+        src: templates/docker-compose.yml.j2
+        dest: "/home/{{ username }}/docker-compose.yml"
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: '0644'
+      notify: restart 1password-connect
+
+    - name: Copy Nginx configuration file with TLS
+      copy:
+        src: files/nginx.conf
+        dest: "/home/{{ username }}/nginx.conf"
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: '0644'
+      notify: restart 1password-connect
+
+    - name: Ensure certbot config directory exists
+      file:
+        path: "/home/{{ username }}/certbot"
+        state: directory
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: '0700'
+
+    - name: Write cloudflare.ini with Cloudflare API token
+      copy:
+        dest: "/home/{{ username }}/certbot/cloudflare.ini"
+        content: "dns_cloudflare_api_token = {{ lookup('env', 'CLOUDFLARE_API_TOKEN') }}\n"
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: '0644'
+
+    - name: Copy docker-compose.certbot.yml
+      template:
+        src: templates/docker-compose.certbot.yml.j2
+        dest: "/home/{{ username }}/docker-compose.certbot.yml"
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: '0644'
+
+    - name: Ensure cron is installed
+      apt:
+        name: cron
+        state: present
+        update_cache: true
+
+    - name: Install certbot renewal cron job
+      cron:
+        name: "Renew Let's Encrypt cert and reload nginx"
+        user: "{{ username }}"
+        minute: "0"
+        hour: "3"
+        job: >-
+          CLOUDFLARE_API_TOKEN={{ lookup('env', 'CLOUDFLARE_API_TOKEN') }}
+          docker-compose -f /home/{{ username }}/docker-compose.certbot.yml run --rm certbot &&
+          docker-compose -f /home/{{ username }}/docker-compose.yml exec nginx nginx -s reload
+
+    - name: Install 1Password Connect systemd service
+      copy:
+        dest: /etc/systemd/system/1password-connect.service
+        content: |
+          [Unit]
+          Description=1Password Connect Stack
+          Requires=docker.service
+          After=docker.service
+
+          [Service]
+          Type=oneshot
+          RemainAfterExit=true
+          WorkingDirectory=/home/{{ username }}
+          User={{ username }}
+          Group={{ username }}
+          ExecStartPre=/usr/bin/docker-compose pull
+          ExecStart=/usr/bin/docker-compose up -d
+          ExecStop=/usr/bin/docker-compose down
+          TimeoutStartSec=0
+
+          [Install]
+          WantedBy=multi-user.target
+        mode: '0644'
+      notify: restart 1password-connect
+  handlers:
+    - name: reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: restart 1password-connect
+      ansible.builtin.systemd:
+        name: 1password-connect
+        enabled: true
+        state: restarted
+      listen: reload systemd

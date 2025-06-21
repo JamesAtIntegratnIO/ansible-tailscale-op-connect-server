@@ -1,0 +1,49 @@
+# Ansible artifacts
+*.retry
+*.log
+*.orig
+inventory.ini
+
+# Ansible vault files (customize to match your vault file names)
+vault.yml
+*.vault.yml
+
+# Private keys and SSH files
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+.ssh/
+
+# Galaxy-installed collections and roles
+ansible/collections/
+ansible/roles/
+
+# Nix build artifacts
+.result/
+.result-tmp/
+*.drv
+*.out
+flake.lock
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Docker/Compose
+.env
+*.env
+docker-compose.override.yml
+
+# Editor/OS junk
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+
+# Score
+.score-compose/

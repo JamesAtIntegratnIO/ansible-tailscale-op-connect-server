@@ -1,0 +1,2 @@
+username: opuser
+op_connect_json: "{{ lookup('env', 'OP_CONNECT_JSON') }}"

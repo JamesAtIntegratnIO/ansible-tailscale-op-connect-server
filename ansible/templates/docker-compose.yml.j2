@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  op-connect-api:
+    image: 1password/connect-api:latest
+    expose:
+      - "8080"
+    volumes:
+      - "/home/{{ username }}/1password-credentials.json:/home/opuser/.op/1password-credentials.json"
+      - "data:/home/opuser/.op/data"
+
+  op-connect-sync:
+    image: 1password/connect-sync:latest
+    volumes:
+      - "/home/{{ username }}/1password-credentials.json:/home/opuser/.op/1password-credentials.json"
+      - "data:/home/opuser/.op/data"
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - /home/{{ username }}/certbot/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - op-connect-api
+
+volumes:
+  data:
+  certs:

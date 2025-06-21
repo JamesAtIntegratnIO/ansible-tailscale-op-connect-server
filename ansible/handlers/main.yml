@@ -1,0 +1,10 @@
+- name: reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: restart 1password-connect
+  ansible.builtin.systemd:
+    name: 1password-connect
+    enabled: true
+    state: restarted
+  listen: reload systemd

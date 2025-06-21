@@ -1,0 +1,20 @@
+version: "3.8"
+
+services:
+  certbot:
+    image: certbot/dns-cloudflare
+    entrypoint: certbot
+    volumes:
+      - /home/{{ username }}/certbot/letsencrypt:/etc/letsencrypt
+      - /home/{{ username }}/certbot/cloudflare.ini:/cloudflare.ini:ro
+    environment:
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+    command: >
+      certonly --dns-cloudflare
+      --dns-cloudflare-credentials /cloudflare.ini
+      --dns-cloudflare-propagation-seconds 30
+      --non-interactive --agree-tos --email admin@integratn.tech
+      -d connect.integratn.tech
+
+volumes:
+  certs:
